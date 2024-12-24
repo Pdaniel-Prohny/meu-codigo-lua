@@ -1,0 +1,122 @@
+owner = "nobody" -- replace with your username
+
+interval = 10
+cannonInfo = {}
+difficulty = 9
+
+maps = {3107377, 305748, 1539148, 390649, 495880, 1463332, 1492805, 305753, 1545834, 3175437, 2964900, 1812056, 852617, 799141, 1794907, 2939549, 1519483, 1794873, 811211, 306360, 479091, 3419948, 290546, 3220945, 281649, 390657, 311496, 802958}
+
+messageTimers = {}
+deathMessage = nil
+
+function main()
+    tfm.exec.disableAutoNewGame(true)
+    tfm.exec.disableAutoShaman(true)
+    tfm.exec.disableAutoTimeLeft(true)
+    tfm.exec.newGame(maps[math.random(#maps)])
+    for name in pairs(tfm.get.room.playerList) do
+        eventNewPlayer(name)
+    end
+end
+
+function eventNewGame()
+    interval = 10
+end
+
+function eventNewPlayer(name)
+    ui.addTextArea(5, "<VP>Bem-vindo(a), <CH>" .. name .. "<VP>! Divirta-se no jogo!", name, 10, 380, nil, nil, 0x000000, 0xFFFFFF, 0.5, true)
+    messageTimers[name] = os.time() + 8000
+end
+
+function eventLoop(time, remaining)
+    if time > 3000 then
+        interval = interval - 1
+        if interval == difficulty then
+            ui.removeTextArea(4)
+            local users = {}
+            for name, p in pairs(tfm.get.room.playerList) do
+                if not p.isDead then
+                    users[#users + 1] = name
+                end
+            end
+            if #users > 0 then
+                cannonInfo = spawnCannon(users[math.random(#users)])
+            end
+            interval = 11
+        elseif interval <= 5 then
+            tfm.exec.setUIMapName("<ROSE>O próximo mapa começa em " .. interval)
+            if interval == 0 then
+                tfm.exec.newGame(maps[math.random(#maps)])
+            end
+        elseif interval == 10 then
+            if cannonInfo[1] then
+                tfm.exec.addShamanObject(17, cannonInfo[1], cannonInfo[2], cannonInfo[3] - 90)
+                cannonInfo = {}
+            end
+        end
+    end
+
+    -- Gerenciar mensagens temporárias
+    local toRemove = {}
+    for name, endTime in pairs(messageTimers) do
+        if os.time() > endTime then
+            ui.removeTextArea(5, name)
+            toRemove[#toRemove + 1] = name
+        end
+    end
+    for _, name in ipairs(toRemove) do
+        messageTimers[name] = nil
+    end
+
+    -- Verificar remoção de mensagem de morte
+    if deathMessage and os.time() > deathMessage.endTime then
+        ui.removeTextArea(6)
+        deathMessage = nil
+    end
+
+    if remaining <= 0 then
+        tfm.exec.newGame(maps[math.random(#maps)])
+    end
+end
+
+function eventPlayerDied(name)
+    -- Exibir mensagem de morte acima do chat no canto direito
+    ui.addTextArea(6, "<R>" .. name .. " morreu!", nil, 600, 370, 200, 25, 0x1C1C1C, 0xFF0000, 0.8, true)
+    deathMessage = {endTime = os.time() + 3000} -- Mensagem desaparece após 3 segundos
+
+    if playerCount() < 1 then
+        interval = 6
+    end
+end
+
+function playerCount()
+    local n = 0
+    for _, player in pairs(tfm.get.room.playerList) do
+        if not player.isDead then
+            n = n + 1
+        end
+    end
+    return n
+end
+
+function spawnCannon(name)
+    local info = {}
+    local player = tfm.get.room.playerList[name]
+    if not player then return info end
+
+    local px = player.x
+    local py = player.y
+
+    local cnnx = px + math.random(-50, 50) -- Reduz variação horizontal
+    local cnny = py - math.random(80, 120) -- Garante que esteja acima do jogador
+
+    local ang = math.deg(math.atan2(cnny - py, cnnx - px))
+    tfm.exec.addShamanObject(0, cnnx, cnny, ang + 90, 0, -40) -- Adiciona velocidade para mais precisão
+    info[1] = cnnx
+    info[2] = cnny
+    info[3] = ang
+    return info
+end
+
+main()
+s
